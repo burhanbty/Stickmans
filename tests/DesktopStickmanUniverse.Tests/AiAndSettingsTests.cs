@@ -361,7 +361,7 @@ public sealed class AiAndSettingsTests
 
         var ai = new AiBehaviorController(new Random(7));
         var input = new InputInteractionManager();
-        var settings = new AppSettings();
+        var settings = new AppSettings { EnableAutomaticMiniEvents = false };
         var particles = new List<ParticleEffect>();
 
         ai.Update(new[] { scout }, particles, snap1, input, settings, 0.05);
@@ -372,7 +372,74 @@ public sealed class AiAndSettingsTests
 
         ai.Update(new[] { scout }, particles, snap2, input, settings, 0.05);
 
-        // At minimum it does not throw and keeps valid finite position.
-        Assert.False(double.IsNaN(scout.X) || double.IsNaN(scout.Y));
+        Assert.Null(scout.EmoteText);
+        ai.Update(new[] { scout }, particles, snap2, input, settings, 0.35);
+        Assert.Equal(StickmanState.Wave, scout.State);
+        Assert.Equal("Hi!", scout.EmoteText);
+        Assert.Equal(1, scout.Facing);
+    }
+
+    [Theory]
+    [InlineData(52, 0, "Document", StickmanState.Brace, "Whoa!")]
+    [InlineData(0, 90, "Document", StickmanState.Think, "Hmm?")]
+    [InlineData(0, 0, "Another document", StickmanState.Peek, "?")]
+    public void AiBehaviorController_RespondsToSettledActiveWindowChanges(
+        int offset, int addedWidth, string caption, StickmanState expectedState, string expectedEmote)
+    {
+        var monitor = new MonitorInfoData("Display", new PixelRect(0, 0, 1200, 900), new PixelRect(0, 0, 1200, 860), 1, true, false);
+        var window = new TrackedWindow(new IntPtr(99), new PixelRect(200, 300, 800, 660), "Document", "Editor", 0, true, false, monitor.DeviceName);
+        var ledge = new WalkableSurface("ledge", window.Hwnd, SurfaceKind.WindowTop, 200, 800, 300, 0, 0, 1, 0, string.Empty);
+        var first = DesktopEnvironmentSnapshot.Empty with { SequenceId = 1, Windows = new[] { window }, Monitors = new[] { monitor } };
+        var scout = new StickmanCharacter { Id = 1, X = 410, Y = ledge.Y, IsGrounded = true, GroundedSurface = ledge, StateDuration = 20 };
+        var ai = new AiBehaviorController(new Random(7));
+        var input = new InputInteractionManager();
+        var settings = new AppSettings { EnableAutomaticMiniEvents = false };
+        var particles = new List<ParticleEffect>();
+        ai.Update(new[] { scout }, particles, first, input, settings, 0.05);
+        Assert.Null(scout.EmoteText);
+
+        var changedWindow = window with
+        {
+            Bounds = window.Bounds with { Left = window.Bounds.Left + offset, Right = window.Bounds.Right + offset + addedWidth },
+            Title = caption
+        };
+        var changed = first with { SequenceId = 2, Windows = new[] { changedWindow } };
+        ai.Update(new[] { scout }, particles, changed, input, settings, 0.15);
+        Assert.Null(scout.EmoteText);
+
+        ai.Update(new[] { scout }, particles, changed, input, settings, 0.55);
+        Assert.Equal(expectedState, scout.State);
+        Assert.Equal(expectedEmote, scout.EmoteText);
+
+        // Repeated frames with the same snapshot do not retrigger the reaction.
+        ai.Update(new[] { scout }, particles, changed, input, settings, 0.1);
+        Assert.InRange(scout.EmoteTimer, 1.09, 1.11);
+    }
+
+    [Fact]
+    public void AiBehaviorController_IgnoresBackgroundChangesAndRebaselinesAfterDisable()
+    {
+        var monitor = new MonitorInfoData("Display", new PixelRect(0, 0, 1200, 900), new PixelRect(0, 0, 1200, 860), 1, true, false);
+        var editor = new TrackedWindow(new IntPtr(1), new PixelRect(180, 250, 920, 700), "Document", "Editor", 0, true, false, monitor.DeviceName);
+        var background = editor with { Hwnd = new IntPtr(2), Title = "Other app", IsForeground = false };
+        var snap = DesktopEnvironmentSnapshot.Empty with { SequenceId = 1, Windows = new[] { editor, background }, Monitors = new[] { monitor } };
+        var floor = new WalkableSurface("floor", IntPtr.Zero, SurfaceKind.MonitorFloor, 0, 1200, 860, 0, 0, 1, 0, string.Empty);
+        var scout = new StickmanCharacter { Id = 1, X = 410, Y = floor.Y, IsGrounded = true, GroundedSurface = floor, StateDuration = 20 };
+        var ai = new AiBehaviorController();
+        var input = new InputInteractionManager();
+        var settings = new AppSettings { EnableAutomaticMiniEvents = false };
+        var particles = new List<ParticleEffect>();
+
+        ai.Update(new[] { scout }, particles, snap, input, settings, 0.05);
+        var backgroundChange = snap with { SequenceId = 2, Windows = new[] { editor, background with { Title = "Changed" } } };
+        ai.Update(new[] { scout }, particles, backgroundChange, input, settings, 0.8);
+        Assert.Null(scout.EmoteText);
+
+        settings.EnableWorkspaceReactions = false;
+        var activeChange = snap with { SequenceId = 3, Windows = new[] { editor with { Title = "New document" } } };
+        ai.Update(new[] { scout }, particles, activeChange, input, settings, 0.8);
+        settings.EnableWorkspaceReactions = true;
+        ai.Update(new[] { scout }, particles, activeChange, input, settings, 0.8);
+        Assert.Null(scout.EmoteText);
     }
 }

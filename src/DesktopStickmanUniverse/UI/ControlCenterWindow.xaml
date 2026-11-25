@@ -151,7 +151,11 @@
 
                     <TextBlock Text="Mini-events" Style="{StaticResource SectionTitle}" Margin="0,21,0,7" />
                     <CheckBox x:Name="AutomaticEventsCheck" Content="Let the crew start events automatically"
-                              Foreground="{StaticResource Muted}" Checked="OnAutomaticEventsChanged" Unchecked="OnAutomaticEventsChanged"
+                              Foreground="{StaticResource Muted}" Checked="OnStageSettingsChanged" Unchecked="OnStageSettingsChanged"
+                              Margin="0,0,0,7" />
+                    <CheckBox x:Name="WorkspaceReactionsCheck" Content="React to the app I’m using"
+                              Foreground="{StaticResource Muted}" Checked="OnStageSettingsChanged" Unchecked="OnStageSettingsChanged"
+                              ToolTip="Respond to active window switches, movement, resizing, and caption changes."
                               Margin="0,0,0,11" />
                     <ItemsControl x:Name="EventChoices" Margin="-4,0,-4,0">
                         <ItemsControl.ItemsPanel>

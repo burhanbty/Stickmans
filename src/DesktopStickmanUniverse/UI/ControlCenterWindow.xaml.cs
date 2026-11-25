@@ -59,6 +59,7 @@ public partial class ControlCenterWindow : Window
         try
         {
             AutomaticEventsCheck.IsChecked = settings.EnableAutomaticMiniEvents;
+            WorkspaceReactionsCheck.IsChecked = settings.EnableWorkspaceReactions;
             var crew = _engine.Characters.Select(c => new CrewMember(c.Id, c.Name, c.Personality.ArchetypeName, c.PrimaryColor)).ToArray();
             if (!_crew.SequenceEqual(crew))
             {
@@ -157,7 +158,7 @@ public partial class ControlCenterWindow : Window
         RefreshRuntime();
     }
 
-    private void OnAutomaticEventsChanged(object sender, RoutedEventArgs e)
+    private void OnStageSettingsChanged(object sender, RoutedEventArgs e)
     {
         if (_syncing || !IsLoaded)
         {
@@ -165,6 +166,7 @@ public partial class ControlCenterWindow : Window
         }
         var updated = _engine.Settings.Clone();
         updated.EnableAutomaticMiniEvents = AutomaticEventsCheck.IsChecked == true;
+        updated.EnableWorkspaceReactions = WorkspaceReactionsCheck.IsChecked == true;
         TrySaveSettings(updated);
     }
 

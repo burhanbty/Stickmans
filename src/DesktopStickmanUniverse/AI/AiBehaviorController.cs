@@ -16,8 +16,7 @@ public sealed class AiBehaviorController
 {
     private readonly Random _rng;
     private readonly MiniEventDirector _eventDirector;
-    private readonly HashSet<IntPtr> _knownWindowHwnds = new();
-    private long _lastSnapshotSeq = -1;
+    private readonly WorkspaceReactions _workspaceReactions = new();
     private double _zzzSpawnAccumulator;
 
     public AiBehaviorController(Random? rng = null)
@@ -48,9 +47,10 @@ public sealed class AiBehaviorController
     public void Reset()
     {
         _eventDirector.Reset();
-        _knownWindowHwnds.Clear();
-        _lastSnapshotSeq = -1;
+        SuspendWorkspaceReactions();
     }
+
+    public void SuspendWorkspaceReactions() => _workspaceReactions.Reset();
 
     public void Update(
         IReadOnlyList<StickmanCharacter> characters,
@@ -62,20 +62,14 @@ public sealed class AiBehaviorController
     {
         if (snapshot.Monitors.Count == 0)
         {
+            SuspendWorkspaceReactions();
             return;
         }
 
-        // 1. React to newly opened windows on desktop.
-        if (snapshot.SequenceId != _lastSnapshotSeq)
-        {
-            _lastSnapshotSeq = snapshot.SequenceId;
-            HandleWindowLifecycleChanges(characters, snapshot, settings);
-        }
-
-        // 2. Update emergent multi-character mini-events.
+        // Coordinated events take precedence over short desktop reactions.
         _eventDirector.Update(characters, particles, snapshot, settings, dt);
 
-        // 3. Step each character's autonomous behavior, timers, cursor awareness, and navigation.
+        // Step each character's autonomous behavior, timers, cursor awareness, and navigation.
         _zzzSpawnAccumulator += dt;
         bool spawnZzzTick = _zzzSpawnAccumulator >= 1.1;
         if (spawnZzzTick)
@@ -126,55 +120,11 @@ public sealed class AiBehaviorController
             StepCharacterBehavior(c, characters, particles, snapshot, input, settings, dt);
             c.AnimPhase += dt;
         }
-    }
 
-    private void HandleWindowLifecycleChanges(
-        IReadOnlyList<StickmanCharacter> characters,
-        DesktopEnvironmentSnapshot snapshot,
-        AppSettings settings)
-    {
-        var currentHwnds = snapshot.Windows.Select(w => w.Hwnd).ToHashSet();
-
-        if (_knownWindowHwnds.Count > 0)
-        {
-            foreach (var win in snapshot.Windows)
-            {
-                if (_knownWindowHwnds.Contains(win.Hwnd))
-                {
-                    continue;
-                }
-
-                // A brand-new window opened! Curious idle/walking characters look at or explore it.
-                var topSurf = snapshot.WalkableSurfaces.FirstOrDefault(s => s.SourceHwnd == win.Hwnd);
-                foreach (var c in characters)
-                {
-                    if (c.IsGrabbed || c.State is StickmanState.Sleep or StickmanState.Climb or StickmanState.FightAttack)
-                    {
-                        continue;
-                    }
-
-                    if (_rng.NextDouble() < c.Personality.CuriosityBias * 0.75)
-                    {
-                        c.Facing = ((win.Bounds.Left + win.Bounds.Right) * 0.5 >= c.X) ? 1 : -1;
-                        c.TriggerEmote("!", 0.85);
-                        if (topSurf is not null && c.IsGrounded && _rng.NextDouble() < 0.6)
-                        {
-                            c.TargetSurface = topSurf;
-                            c.MoveTargetX = Math.Clamp(c.X, topSurf.Left + 24 * c.DpiScale, topSurf.Right - 24 * c.DpiScale);
-                            c.State = StickmanState.Run;
-                            c.StateTime = 0;
-                            c.StateDuration = 4.0;
-                        }
-                    }
-                }
-            }
-        }
-
-        _knownWindowHwnds.Clear();
-        foreach (var h in currentHwnds)
-        {
-            _knownWindowHwnds.Add(h);
-        }
+        // Desktop changes use real elapsed time so animation speed only affects the poses.
+        _workspaceReactions.Update(characters, snapshot,
+            settings.EnableWorkspaceReactions && _eventDirector.ActiveEvent == MiniEventKind.None,
+            dt / settings.AnimationSpeed);
     }
 
     private void UpdateTimers(StickmanCharacter c, double dt)

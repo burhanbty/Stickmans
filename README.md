@@ -7,6 +7,7 @@ Autonomous Windows desktop stickman overlay application built with **.NET 8**, *
 Double-click the Stickmans tray icon or choose **Open Stickmans** from its menu.
 
 - Start or stop one of six mini-events and see the current event and its remaining time. Turn off automatic mini-events to run the stage manually.
+- Enable **React to the app I’m using** to have nearby characters greet newly active windows, react when a window moves or resizes, and peek when a tab or document change updates the window caption. A character riding a moved window can steady itself on the ledge. Reactions use window focus, bounds, and caption changes from the local window snapshot.
 - Give each character a nickname and use **Find on desktop** to have the selected character call out. Nicknames are saved locally and stay with the crew when you change its size.
 - Start a 15-, 25-, or 50-minute focus session to hide the crew and suspend the simulation. The app restores your previous visibility and pause settings when the session ends.
 

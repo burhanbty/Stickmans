@@ -33,7 +33,8 @@ public enum StickmanState
     Dance,
     Backflip,
     Handstand,
-    Pushups
+    Pushups,
+    Brace
 }
 
 public enum CombatMoveKind

@@ -488,6 +488,24 @@ public static class ProceduralAnimator
                 break;
             }
 
+            case StickmanState.Brace:
+            {
+                double sway = Math.Sin(character.StateTime * 13) * Math.Max(0, 1 - character.StateTime) * 3.0 * s;
+                pose.Pelvis = new Vec2(-1.5 * facing * s, -18.5 * s);
+                pose.Chest = new Vec2(sway, -28 * s);
+                pose.Neck = new Vec2(sway + 1.5 * facing * s, -34 * s);
+                pose.HeadCenter = pose.Neck + new Vec2(1.5 * facing * s, -6.5 * s);
+                pose.HipL = pose.Pelvis + new Vec2(-2 * s, 0);
+                pose.HipR = pose.Pelvis + new Vec2(2 * s, 0);
+                (pose.KneeL, pose.FootL) = SkeletonRig.SolveTwoBoneIK(pose.HipL, new Vec2(-8 * s, 0), thighLen, shinLen, kneeBend);
+                (pose.KneeR, pose.FootR) = SkeletonRig.SolveTwoBoneIK(pose.HipR, new Vec2(8 * s, 0), thighLen, shinLen, kneeBend);
+                pose.ShoulderL = pose.Neck + new Vec2(-2 * s, 2 * s);
+                pose.ShoulderR = pose.Neck + new Vec2(2 * s, 2 * s);
+                (pose.ElbowL, pose.HandL) = SkeletonRig.SolveTwoBoneIK(pose.ShoulderL, pose.ShoulderL + new Vec2(-14 * s, -sway), upperArmLen, foreArmLen, -elbowBend);
+                (pose.ElbowR, pose.HandR) = SkeletonRig.SolveTwoBoneIK(pose.ShoulderR, pose.ShoulderR + new Vec2(14 * s, sway), upperArmLen, foreArmLen, elbowBend);
+                break;
+            }
+
             case StickmanState.Peek:
             {
                 double tilt = Math.Sin(t * 3.0) * 1.5 * s;

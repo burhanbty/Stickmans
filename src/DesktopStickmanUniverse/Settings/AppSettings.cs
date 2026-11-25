@@ -26,6 +26,7 @@ public sealed class AppSettings
     public bool EnableFighting { get; set; } = true;
     public bool EnableMouseInteraction { get; set; } = true;
     public bool EnableAutomaticMiniEvents { get; set; } = true;
+    public bool EnableWorkspaceReactions { get; set; } = true;
     public bool IsPaused { get; set; } = false;
     public bool PerformanceMode { get; set; } = false;
     public bool LaunchAtStartup { get; set; } = false;
@@ -41,6 +42,7 @@ public sealed class AppSettings
         EnableFighting = EnableFighting,
         EnableMouseInteraction = EnableMouseInteraction,
         EnableAutomaticMiniEvents = EnableAutomaticMiniEvents,
+        EnableWorkspaceReactions = EnableWorkspaceReactions,
         IsPaused = IsPaused,
         PerformanceMode = PerformanceMode,
         LaunchAtStartup = LaunchAtStartup

@@ -70,6 +70,7 @@ public sealed class WindowTracker : IDisposable
         HookRange(EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MINIMIZEEND);
         HookRange(EVENT_OBJECT_CREATE, EVENT_OBJECT_HIDE);
         HookRange(EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE);
+        HookRange(EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE);
         HookRange(EVENT_OBJECT_CLOAKED, EVENT_OBJECT_UNCLOAKED);
 
         RefreshNow();
@@ -107,6 +108,11 @@ public sealed class WindowTracker : IDisposable
         }
 
         if (idObject != OBJID_WINDOW || idChild != CHILDID_SELF)
+        {
+            return;
+        }
+
+        if (eventType == EVENT_OBJECT_NAMECHANGE && hwnd != GetForegroundWindow())
         {
             return;
         }

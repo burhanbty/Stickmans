@@ -49,6 +49,7 @@ internal static class Win32Native
     internal const uint EVENT_OBJECT_SHOW = 0x8002;
     internal const uint EVENT_OBJECT_HIDE = 0x8003;
     internal const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
+    internal const uint EVENT_OBJECT_NAMECHANGE = 0x800C;
     internal const uint EVENT_OBJECT_CLOAKED = 0x8017;
     internal const uint EVENT_OBJECT_UNCLOAKED = 0x8018;
 

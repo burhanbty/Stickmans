@@ -356,6 +356,7 @@ public sealed class StickmanUniverseEngine : IDisposable
 
         if (!overlayActive || allSuppressed)
         {
+            _aiController.SuspendWorkspaceReactions();
             _overlayManager.UpdateClickThrough(null);
             _currentTargetFps = 0;
             _tickTimer.Interval = TimeSpan.FromMilliseconds(350);
