@@ -17,11 +17,14 @@ public sealed class TrayManager : IDisposable
 
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Forms.ToolStripMenuItem _pauseResumeItem;
+    private readonly Forms.ToolStripMenuItem _focusItem;
     private readonly IntPtr _iconHandle;
     private readonly Icon _icon;
     private bool _disposed;
 
     public event Action? PauseResumeRequested;
+    public event Action? OpenControlCenterRequested;
+    public event Action? FocusRequested;
     public event Action? SettingsRequested;
     public event Action? ScatterRequested;
     public event Action<MiniEventKind>? MiniEventRequested;
@@ -33,28 +36,36 @@ public sealed class TrayManager : IDisposable
 
         var menu = new Forms.ContextMenuStrip();
 
+        var openItem = new Forms.ToolStripMenuItem("Open Stickmans");
+        openItem.Click += (_, _) => OpenControlCenterRequested?.Invoke();
+
         _pauseResumeItem = new Forms.ToolStripMenuItem("Pause");
         _pauseResumeItem.Click += (_, _) => PauseResumeRequested?.Invoke();
 
+        _focusItem = new Forms.ToolStripMenuItem("Focus for 25 minutes");
+        _focusItem.Click += (_, _) => FocusRequested?.Invoke();
+
         var settingsItem = new Forms.ToolStripMenuItem("Settings...");
-        settingsItem.Font = new Font(settingsItem.Font, FontStyle.Bold);
         settingsItem.Click += (_, _) => SettingsRequested?.Invoke();
 
         var scatterItem = new Forms.ToolStripMenuItem("Scatter Characters");
         scatterItem.Click += (_, _) => ScatterRequested?.Invoke();
 
         var miniEventsItem = new Forms.ToolStripMenuItem("Mini-Events");
-        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Dance Party", MiniEventKind.DanceParty));
-        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Tag Chase", MiniEventKind.TagChase));
-        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Acrobatics Show", MiniEventKind.AcrobaticsShow));
-        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Group Chat", MiniEventKind.GatheringChat));
-        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Window Summit Climb", MiniEventKind.SummitClimb));
-        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Spectated Duel", MiniEventKind.SpectatedDuel));
+        foreach (var miniEvent in MiniEventPresentation.All)
+        {
+            var item = new Forms.ToolStripMenuItem(miniEvent.Title);
+            item.Click += (_, _) => MiniEventRequested?.Invoke(miniEvent.Kind);
+            miniEventsItem.DropDownItems.Add(item);
+        }
 
         var exitItem = new Forms.ToolStripMenuItem("Exit");
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
+        menu.Items.Add(openItem);
+        menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(_pauseResumeItem);
+        menu.Items.Add(_focusItem);
         menu.Items.Add(scatterItem);
         menu.Items.Add(miniEventsItem);
         menu.Items.Add(settingsItem);
@@ -69,27 +80,12 @@ public sealed class TrayManager : IDisposable
             Visible = true
         };
 
-        _notifyIcon.DoubleClick += (_, _) => SettingsRequested?.Invoke();
-    }
-
-    private Forms.ToolStripMenuItem CreateMiniEventItem(string label, MiniEventKind kind)
-    {
-        var item = new Forms.ToolStripMenuItem(label);
-        item.Click += (_, _) => MiniEventRequested?.Invoke(kind);
-        return item;
+        _notifyIcon.DoubleClick += (_, _) => OpenControlCenterRequested?.Invoke();
     }
 
     public void ShowMiniEventResult(MiniEventStartResult result)
     {
-        string? message = result switch
-        {
-            MiniEventStartResult.DesktopUnavailable => "Resume the simulation and make the characters visible first.",
-            MiniEventStartResult.EventInProgress => "Wait for the current mini-event to finish, then try again.",
-            MiniEventStartResult.FightingDisabled => "Enable playful fighting in Settings to start a duel.",
-            MiniEventStartResult.TooFewAvailableCharacters => "At least two characters must be awake, grounded, and free to join.",
-            MiniEventStartResult.NoSuitableWindow => "Open a window with a wide, visible top edge to start a summit climb.",
-            _ => null
-        };
+        string? message = MiniEventPresentation.GetFeedback(result);
 
         if (!_disposed && message is not null)
         {
@@ -97,7 +93,7 @@ public sealed class TrayManager : IDisposable
         }
     }
 
-    public void UpdatePausedState(bool isPaused)
+    public void UpdatePausedState(bool isPaused, bool isFocusActive = false)
     {
         if (_disposed)
         {
@@ -105,9 +101,8 @@ public sealed class TrayManager : IDisposable
         }
 
         _pauseResumeItem.Text = isPaused ? "Resume" : "Pause";
-        _notifyIcon.Text = isPaused
-            ? "Desktop Stickman Universe (Paused)"
-            : "Desktop Stickman Universe";
+        _focusItem.Text = isFocusActive ? "End focus session" : "Focus for 25 minutes";
+        _notifyIcon.Text = isFocusActive ? "Stickmans (Focus)" : isPaused ? "Stickmans (Paused)" : "Stickmans";
     }
 
     private static (Icon Icon, IntPtr Handle) CreateStickmanTrayIcon()
@@ -169,6 +164,7 @@ public sealed class TrayManager : IDisposable
 
         _disposed = true;
         _notifyIcon.Visible = false;
+        _notifyIcon.ContextMenuStrip?.Dispose();
         _notifyIcon.Dispose();
         _icon.Dispose();
         if (_iconHandle != IntPtr.Zero)

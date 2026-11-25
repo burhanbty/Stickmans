@@ -2,6 +2,14 @@
 
 Autonomous Windows desktop stickman overlay application built with **.NET 8**, **WPF**, and **Win32** desktop integration. Stickman characters walk, jump, climb, interact with open windows and the taskbar, react to the mouse cursor, and stage emergent multi-character mini-events across your monitors.
 
+## Control Center
+
+Double-click the Stickmans tray icon or choose **Open Stickmans** from its menu.
+
+- Start or stop one of six mini-events and see the current event and its remaining time. Turn off automatic mini-events to run the stage manually.
+- Give each character a nickname and use **Find on desktop** to have the selected character call out. Nicknames are saved locally and stay with the crew when you change its size.
+- Start a 15-, 25-, or 50-minute focus session to hide the crew and suspend the simulation. The app restores your previous visibility and pause settings when the session ends.
+
 ## Features
 
 - **Desktop & Multi-Monitor Awareness**: Tracks open windows, DWM extended frame bounds, cloaked windows, taskbars, and per-monitor DPI scales using `SetWinEventHook` and Win32 APIs (`WindowTracker`, `DesktopEnvironmentSnapshot`).

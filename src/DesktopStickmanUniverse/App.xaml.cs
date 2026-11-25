@@ -12,6 +12,7 @@ public partial class App : Application
     private StickmanUniverseEngine? _engine;
     private TrayManager? _trayManager;
     private SettingsWindow? _settingsWindow;
+    private ControlCenterWindow? _controlCenter;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -34,7 +35,13 @@ public partial class App : Application
         _trayManager = new TrayManager();
 
         _trayManager.UpdatePausedState(_engine.Settings.IsPaused);
+        _trayManager.OpenControlCenterRequested += ShowControlCenter;
         _trayManager.PauseResumeRequested += () => _engine.TogglePause();
+        _trayManager.FocusRequested += () =>
+        {
+            if (_engine.IsFocusActive) _engine.EndFocus();
+            else _engine.StartFocus(TimeSpan.FromMinutes(25));
+        };
         _trayManager.SettingsRequested += ShowOrActivateSettings;
         _trayManager.ScatterRequested += () => _engine.ScatterCharacters();
         _trayManager.MiniEventRequested += kind => _trayManager.ShowMiniEventResult(_engine.TryStartMiniEvent(kind));
@@ -43,14 +50,41 @@ public partial class App : Application
         _engine.OpenSettingsRequested += ShowOrActivateSettings;
         _engine.SettingsChanged += s =>
         {
-            _trayManager.UpdatePausedState(s.IsPaused);
+            _trayManager.UpdatePausedState(s.IsPaused, _engine.IsFocusActive);
             if (_settingsWindow is { IsVisible: true })
             {
                 _settingsWindow.SyncFromSettings(s);
             }
         };
+        _engine.FocusChanged += () => _trayManager.UpdatePausedState(_engine.Settings.IsPaused, _engine.IsFocusActive);
 
         _engine.Start();
+        if (e.Args.Contains("--control-center", StringComparer.OrdinalIgnoreCase))
+        {
+            ShowControlCenter();
+        }
+    }
+
+    private void ShowControlCenter()
+    {
+        if (_engine is null)
+        {
+            return;
+        }
+
+        if (_controlCenter is null)
+        {
+            _controlCenter = new ControlCenterWindow(_engine);
+            _controlCenter.SettingsRequested += ShowOrActivateSettings;
+            _controlCenter.Closed += (_, _) => _controlCenter = null;
+            _controlCenter.Show();
+        }
+        else if (_controlCenter.WindowState == WindowState.Minimized)
+        {
+            _controlCenter.WindowState = WindowState.Normal;
+        }
+
+        _controlCenter.Activate();
     }
 
     private void ShowOrActivateSettings()
@@ -79,6 +113,7 @@ public partial class App : Application
 
     private void ShutdownCleanly()
     {
+        _controlCenter?.Close();
         _settingsWindow?.Close();
         _trayManager?.Dispose();
         _engine?.Dispose();

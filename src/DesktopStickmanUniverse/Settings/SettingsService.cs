@@ -70,6 +70,26 @@ public sealed class SettingsService
         {
             s.CharacterColors = new AppSettings().CharacterColors;
         }
+        s.CharacterNames = (s.CharacterNames ?? new List<string>())
+            .Take(10)
+            .Select(NormalizeCharacterName)
+            .ToList();
         return s;
+    }
+
+    private static string NormalizeCharacterName(string? name)
+    {
+        string trimmed = new string((name ?? string.Empty).Where(c => !char.IsControl(c)).ToArray()).Trim();
+        if (trimmed.Length <= AppSettings.MaxCharacterNameLength)
+        {
+            return trimmed;
+        }
+
+        int length = AppSettings.MaxCharacterNameLength;
+        if (char.IsHighSurrogate(trimmed[length - 1]))
+        {
+            length--;
+        }
+        return trimmed[..length].TrimEnd();
     }
 }

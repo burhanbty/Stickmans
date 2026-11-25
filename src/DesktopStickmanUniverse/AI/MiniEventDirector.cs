@@ -49,6 +49,7 @@ public sealed class MiniEventDirector
     private bool _gatheringSparkedFight;
 
     public MiniEventKind ActiveEvent => _activeEvent;
+    public double RemainingSeconds => Math.Max(0, _activeEventTimer);
 
     public bool IsParticipating(int characterId) =>
         _activeEvent != MiniEventKind.None &&
@@ -105,7 +106,7 @@ public sealed class MiniEventDirector
             return;
         }
 
-        if (_globalCooldown > 0)
+        if (!settings.EnableAutomaticMiniEvents || _globalCooldown > 0)
         {
             return;
         }
@@ -123,6 +124,17 @@ public sealed class MiniEventDirector
         }
 
         TryStartRandomEvent(characters, snapshot, settings);
+    }
+
+    public void StopEvent(IReadOnlyList<StickmanCharacter> characters, AppSettings settings)
+    {
+        if (_activeEvent == MiniEventKind.None)
+        {
+            return;
+        }
+
+        EndActiveEvent(characters);
+        _globalCooldown = Math.Max(_globalCooldown, GetGlobalCooldown(settings));
     }
 
     public bool TryStartDuel(
@@ -928,8 +940,11 @@ public sealed class MiniEventDirector
             {
                 c.PartnerCharacterId = null;
                 c.LookTargetCharacterId = null;
+                c.MoveTargetX = null;
+                c.TargetSurface = null;
+                c.TargetClimbWall = null;
                 c.MiniEventCooldown = 3.5;
-                if (c.IsGrounded && c.State is not StickmanState.Sleep and not StickmanState.Fall and not StickmanState.Backflip)
+                if (!c.IsGrabbed && c.IsGrounded && c.State is not StickmanState.Sleep and not StickmanState.Fall and not StickmanState.Backflip)
                 {
                     c.Vx = 0;
                     c.State = StickmanState.Idle;
@@ -940,6 +955,7 @@ public sealed class MiniEventDirector
         }
 
         _activeEvent = MiniEventKind.None;
+        _activeEventTimer = 0;
         _primaryId = null;
         _secondaryId = null;
         _groupIds.Clear();

@@ -27,6 +27,48 @@ public sealed class WindowsIntegrationTests
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
     [Fact]
+    public void ControlCenter_StartsFocusAndRestoresPlaybackWhenItExpires()
+    {
+        RunOnStaThread(() =>
+        {
+            string settingsPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"stickmans_focus_{Guid.NewGuid():N}.json");
+            var time = new TestClock();
+            using var engine = new StickmanUniverseEngine(Dispatcher.CurrentDispatcher, new SettingsService(settingsPath), time);
+            engine.Start();
+            var panel = new ControlCenterWindow(engine);
+            panel.Show();
+            try
+            {
+                var focusButton = Assert.IsType<System.Windows.Controls.Button>(panel.FindName("FocusButton"));
+                focusButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                Assert.Equal(DesktopPlaybackState.Focusing, engine.PlaybackState);
+                Assert.Equal(TimeSpan.FromMinutes(25), engine.FocusTimeRemaining);
+                Assert.Equal(0, engine.CurrentPerformance.ActiveOverlays);
+
+                var settings = engine.Settings.Clone();
+                settings.IsPaused = true;
+                engine.ApplySettings(settings, save: false);
+                time.Now = time.Now.AddMinutes(25);
+                PumpDispatcher(410);
+                Assert.False(engine.IsFocusActive);
+                Assert.Equal(DesktopPlaybackState.Paused, engine.PlaybackState);
+                Assert.False(System.IO.File.Exists(settingsPath));
+            }
+            finally
+            {
+                panel.Close();
+            }
+        });
+    }
+
+    private sealed class TestClock : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = new(2026, 11, 25, 12, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
+    [Fact]
     public void WindowTracker_DetectsRealMonitorsAndTaskbar()
     {
         RunOnStaThread(() =>
@@ -151,6 +193,7 @@ public sealed class WindowsIntegrationTests
                 tracker.Start();
 
                 TrackedWindow? detected = null;
+                WalkableSurface? topSurface = null;
                 var deadline = DateTime.UtcNow.AddSeconds(5);
                 while (DateTime.UtcNow < deadline)
                 {
@@ -158,15 +201,18 @@ public sealed class WindowsIntegrationTests
                     detected = snap.Windows.FirstOrDefault(w => w.Title == testTitle);
                     if (detected is not null)
                     {
-                        break;
+                        topSurface = snap.WalkableSurfaces.FirstOrDefault(s => s.SourceHwnd == detected.Hwnd && s.Kind == SurfaceKind.WindowTop);
+                        if (topSurface is not null)
+                        {
+                            break;
+                        }
                     }
                     Thread.Sleep(80);
                 }
 
                 Assert.NotNull(detected);
-                var snap1 = tracker.CurrentSnapshot;
-                var topSurface = snap1.WalkableSurfaces.FirstOrDefault(s => s.SourceHwnd == detected!.Hwnd && s.Kind == SurfaceKind.WindowTop);
                 Assert.NotNull(topSurface);
+                var snap1 = tracker.CurrentSnapshot;
 
                 var physics = new PhysicsEngine();
                 var particles = new List<ParticleEffect>();

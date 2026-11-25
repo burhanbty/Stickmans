@@ -271,6 +271,35 @@ public sealed class InputInteractionManager
         CharacterInteracted?.Invoke(c);
     }
 
+    internal void CancelInteraction()
+    {
+        var character = _grabbedCharacter;
+        _grabbedCharacter = null;
+        var window = _activeGrabWindow;
+        _activeGrabWindow = null;
+        if (window is { IsMouseCaptured: true })
+        {
+            window.ReleaseMouseCapture();
+        }
+
+        if (_activeContextMenu is not null)
+        {
+            _activeContextMenu.IsOpen = false;
+        }
+
+        HoveredCharacterId = null;
+        if (character is not null)
+        {
+            character.IsGrabbed = false;
+            character.Vx = 0;
+            character.Vy = 0;
+            character.FallStartY = character.Y;
+            character.State = StickmanState.Fall;
+            character.StateTime = 0;
+            character.StateDuration = 1.5;
+        }
+    }
+
     private void OnMouseRightUp(OverlayWindow window, Point physPt)
     {
         TryOpenContextMenuRequested?.Invoke(window, physPt);

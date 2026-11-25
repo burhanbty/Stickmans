@@ -11,6 +11,65 @@ namespace DesktopStickmanUniverse.Tests;
 
 public sealed class AiAndSettingsTests
 {
+    [Fact]
+    public void MiniEventDirector_ManualModeStopsAndClearsEventTargets()
+    {
+        var floor = new WalkableSurface("floor", IntPtr.Zero, SurfaceKind.MonitorFloor, 0, 1200, 720, 0, 0, 1, 0, "Floor");
+        var snap = DesktopEnvironmentSnapshot.Empty with { WalkableSurfaces = new[] { floor } };
+        var characters = new[]
+        {
+            new StickmanCharacter { Id = 1, X = 400, Y = floor.Y, IsGrounded = true, GroundedSurface = floor },
+            new StickmanCharacter { Id = 2, X = 460, Y = floor.Y, IsGrounded = true, GroundedSurface = floor }
+        };
+        var settings = new AppSettings { EnableAutomaticMiniEvents = false, ActivityLevel = ActivityLevel.Lively };
+        var director = new MiniEventDirector();
+
+        director.Update(characters, new List<ParticleEffect>(), snap, settings, 10);
+        Assert.Equal(MiniEventKind.None, director.ActiveEvent);
+        Assert.Equal(MiniEventStartResult.Started, director.TryStartEvent(MiniEventKind.DanceParty, characters, snap, settings));
+        Assert.True(director.RemainingSeconds > 0);
+        Assert.All(characters, c => Assert.NotNull(c.TargetSurface));
+
+        director.StopEvent(characters, settings);
+        Assert.Equal(MiniEventKind.None, director.ActiveEvent);
+        Assert.Equal(0, director.RemainingSeconds);
+        Assert.All(characters, c =>
+        {
+            Assert.Null(c.PartnerCharacterId);
+            Assert.Null(c.MoveTargetX);
+            Assert.Null(c.TargetSurface);
+        });
+    }
+
+    [Fact]
+    public void SettingsService_DefaultsOldSettingsAndNormalizesNicknames()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"stickmans_test_{Guid.NewGuid():N}.json");
+        var service = new SettingsService(path);
+        try
+        {
+            File.WriteAllText(path, "{\"CharacterCount\": 3}");
+            var settings = service.Load();
+            Assert.True(settings.EnableAutomaticMiniEvents);
+            Assert.Equal("Spark", settings.GetNameForIndex(0));
+
+            settings.CharacterNames = new List<string> { "  Kıvılcım  ", " ", new string('A', 23) + "✨🪴", "Dördüncü" };
+            settings.EnableAutomaticMiniEvents = false;
+            service.Save(settings);
+
+            var loaded = service.Load();
+            Assert.False(loaded.EnableAutomaticMiniEvents);
+            Assert.Equal("Kıvılcım", loaded.GetNameForIndex(0));
+            Assert.Equal("Scout", loaded.GetNameForIndex(1));
+            Assert.Equal(AppSettings.MaxCharacterNameLength, loaded.GetNameForIndex(2).Length);
+            Assert.Equal("Dördüncü", loaded.GetNameForIndex(3));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Theory]
     [InlineData(MiniEventKind.DanceParty)]
     [InlineData(MiniEventKind.TagChase)]

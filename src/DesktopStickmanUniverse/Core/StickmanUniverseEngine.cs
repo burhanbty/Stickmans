@@ -12,6 +12,15 @@ using DesktopStickmanUniverse.Settings;
 
 namespace DesktopStickmanUniverse.Core;
 
+public enum DesktopPlaybackState
+{
+    Running,
+    Paused,
+    Hidden,
+    Focusing,
+    Unavailable
+}
+
 /// <summary>
 /// Central coordinator connecting desktop window tracking, physics, AI behaviors,
 /// procedural animation, selective input, overlay rendering, and adaptive pacing.
@@ -26,6 +35,7 @@ public sealed class StickmanUniverseEngine : IDisposable
     private readonly AiBehaviorController _aiController;
     private readonly InputInteractionManager _inputManager;
     private readonly PerformanceMonitor _performanceMonitor;
+    private readonly TimeProvider _timeProvider;
 
     private readonly List<StickmanCharacter> _characters = new();
     private readonly List<ParticleEffect> _particles = new();
@@ -36,11 +46,38 @@ public sealed class StickmanUniverseEngine : IDisposable
     private TimeSpan _lastTickTimestamp;
     private DateTime _lastRenderUtc = DateTime.MinValue;
     private int? _lastHoveredId;
+    private DateTimeOffset? _focusEndsAt;
     private bool _disposed;
 
     public AppSettings Settings => _settings;
     public IReadOnlyList<StickmanCharacter> Characters => _characters;
     public DesktopEnvironmentSnapshot CurrentSnapshot => _windowTracker.CurrentSnapshot;
+    public MiniEventKind ActiveMiniEvent => _aiController.CurrentMiniEvent;
+    public double MiniEventRemainingSeconds => _aiController.MiniEventRemainingSeconds;
+    public bool IsFocusActive => _focusEndsAt.HasValue;
+    public TimeSpan FocusTimeRemaining
+    {
+        get
+        {
+            TimeSpan remaining = _focusEndsAt.GetValueOrDefault() - _timeProvider.GetUtcNow();
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        }
+    }
+
+    private bool ShouldShowCharacters => _settings.CharactersEnabled && !_settings.IsPaused && !IsFocusActive;
+
+    public DesktopPlaybackState PlaybackState
+    {
+        get
+        {
+            if (IsFocusActive) return DesktopPlaybackState.Focusing;
+            if (!_settings.CharactersEnabled) return DesktopPlaybackState.Hidden;
+            if (_settings.IsPaused) return DesktopPlaybackState.Paused;
+            return _overlayManager.AreAllMonitorsSuppressed(CurrentSnapshot, true)
+                ? DesktopPlaybackState.Unavailable
+                : DesktopPlaybackState.Running;
+        }
+    }
     public PerformanceSnapshot CurrentPerformance => _performanceMonitor.GetSnapshot(
         _windowTracker.LastScanDurationMs,
         _currentTargetFps,
@@ -50,11 +87,13 @@ public sealed class StickmanUniverseEngine : IDisposable
 
     public event Action? OpenSettingsRequested;
     public event Action<AppSettings>? SettingsChanged;
+    public event Action? FocusChanged;
 
-    public StickmanUniverseEngine(Dispatcher dispatcher, SettingsService settingsService)
+    public StickmanUniverseEngine(Dispatcher dispatcher, SettingsService settingsService, TimeProvider? timeProvider = null)
     {
         _dispatcher = dispatcher;
         _settingsService = settingsService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _settings = _settingsService.Load();
 
         _windowTracker = new WindowTracker(_dispatcher);
@@ -81,7 +120,7 @@ public sealed class StickmanUniverseEngine : IDisposable
     public void Start()
     {
         _windowTracker.Start();
-        _overlayManager.SyncMonitors(_windowTracker.CurrentSnapshot, _settings.CharactersEnabled && !_settings.IsPaused);
+        SyncOverlayVisibility();
         SyncCharacterRoster();
         _lastTickTimestamp = _clock.Elapsed;
         _tickTimer.Start();
@@ -90,32 +129,66 @@ public sealed class StickmanUniverseEngine : IDisposable
     public void ApplySettings(AppSettings updated, bool save = true)
     {
         int prevCount = _settings.CharacterCount;
-        _settings = SettingsService.Normalize(updated.Clone());
+        var normalized = SettingsService.Normalize(updated.Clone());
 
         if (save)
         {
-            _settingsService.Save(_settings);
+            _settingsService.Save(normalized);
+        }
+
+        _settings = normalized;
+        if (_settings.CharacterCount != prevCount || (!_settings.EnableFighting && ActiveMiniEvent == MiniEventKind.SpectatedDuel))
+        {
+            StopMiniEvent();
         }
 
         if (_settings.CharacterCount != prevCount)
         {
+            _inputManager.CancelInteraction();
             SyncCharacterRoster();
         }
         else
         {
-            for (int i = 0; i < _characters.Count; i++)
-            {
-                _characters[i].PrimaryColor = _settings.GetColorForIndex(i);
-            }
+            UpdateCharacterAppearance();
         }
 
-        _overlayManager.SyncMonitors(_windowTracker.CurrentSnapshot, _settings.CharactersEnabled && !_settings.IsPaused);
-        if (_settings.IsPaused || !_settings.CharactersEnabled)
+        SyncOverlayVisibility();
+        SettingsChanged?.Invoke(_settings);
+    }
+
+    public void StartFocus(TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero || duration > TimeSpan.FromHours(1))
         {
+            throw new ArgumentOutOfRangeException(nameof(duration));
+        }
+
+        _focusEndsAt = _timeProvider.GetUtcNow() + duration;
+        SyncOverlayVisibility();
+        FocusChanged?.Invoke();
+    }
+
+    public void EndFocus()
+    {
+        if (!IsFocusActive)
+        {
+            return;
+        }
+
+        _focusEndsAt = null;
+        SyncOverlayVisibility();
+        FocusChanged?.Invoke();
+    }
+
+    private void SyncOverlayVisibility()
+    {
+        bool show = ShouldShowCharacters;
+        if (!show || !_settings.EnableMouseInteraction)
+        {
+            _inputManager.CancelInteraction();
             _overlayManager.UpdateClickThrough(null);
         }
-
-        SettingsChanged?.Invoke(_settings);
+        _overlayManager.SyncMonitors(CurrentSnapshot, show);
     }
 
     public void TogglePause()
@@ -128,13 +201,44 @@ public sealed class StickmanUniverseEngine : IDisposable
     public MiniEventStartResult TryStartMiniEvent(MiniEventKind kind)
     {
         var snapshot = _windowTracker.CurrentSnapshot;
-        bool overlayActive = _settings.CharactersEnabled && !_settings.IsPaused;
-        if (_disposed || _overlayManager.AreAllMonitorsSuppressed(snapshot, overlayActive))
+        if (_disposed || PlaybackState != DesktopPlaybackState.Running)
         {
             return MiniEventStartResult.DesktopUnavailable;
         }
 
         return _aiController.TryStartMiniEvent(kind, _characters, snapshot, _settings);
+    }
+
+    public void StopMiniEvent() => _aiController.StopMiniEvent(_characters, _settings);
+
+    public void SetCharacterName(int id, string name)
+    {
+        int index = _characters.FindIndex(character => character.Id == id);
+        if (index < 0)
+        {
+            return;
+        }
+
+        var updated = _settings.Clone();
+        while (updated.CharacterNames.Count <= index)
+        {
+            updated.CharacterNames.Add(string.Empty);
+        }
+        updated.CharacterNames[index] = name;
+        ApplySettings(updated);
+    }
+
+    public bool TryLocateCharacter(int id)
+    {
+        var character = _characters.Find(c => c.Id == id);
+        if (_disposed || PlaybackState != DesktopPlaybackState.Running || character is null ||
+            CurrentSnapshot.FindMonitorAt(character.X, character.Y) is not { HasFullscreenWindow: false })
+        {
+            return false;
+        }
+
+        character.TriggerEmote("Here!", 2.0);
+        return true;
     }
 
     public void ScatterCharacters()
@@ -146,6 +250,8 @@ public sealed class StickmanUniverseEngine : IDisposable
             return;
         }
 
+        StopMiniEvent();
+        _inputManager.CancelInteraction();
         var rng = new Random();
         for (int i = 0; i < _characters.Count; i++)
         {
@@ -197,10 +303,6 @@ public sealed class StickmanUniverseEngine : IDisposable
             var c = new StickmanCharacter
             {
                 Id = idx + 1,
-                Name = idx < StickmanCharacter.DefaultPersonalities.Count
-                    ? profile.ArchetypeName
-                    : $"{profile.ArchetypeName}-{idx + 1}",
-                PrimaryColor = _settings.GetColorForIndex(idx),
                 Personality = profile,
                 X = spawnX,
                 Y = floorY - 140.0 * dpi,
@@ -214,9 +316,15 @@ public sealed class StickmanUniverseEngine : IDisposable
             _characters.Add(c);
         }
 
+        UpdateCharacterAppearance();
+    }
+
+    private void UpdateCharacterAppearance()
+    {
         for (int i = 0; i < _characters.Count; i++)
         {
             _characters[i].PrimaryColor = _settings.GetColorForIndex(i);
+            _characters[i].Name = _settings.GetNameForIndex(i);
         }
     }
 
@@ -228,6 +336,11 @@ public sealed class StickmanUniverseEngine : IDisposable
         }
 
         var frameSw = Stopwatch.StartNew();
+        if (IsFocusActive && FocusTimeRemaining == TimeSpan.Zero)
+        {
+            EndFocus();
+        }
+
         TimeSpan nowTimestamp = _clock.Elapsed;
         double rawDt = (nowTimestamp - _lastTickTimestamp).TotalSeconds;
         _lastTickTimestamp = nowTimestamp;
@@ -236,7 +349,7 @@ public sealed class StickmanUniverseEngine : IDisposable
 
         // Refresh window/taskbar snapshot (event-driven coalesced).
         var snapshot = _windowTracker.RefreshIfNeeded(_settings.PerformanceMode);
-        bool overlayActive = _settings.CharactersEnabled && !_settings.IsPaused;
+        bool overlayActive = ShouldShowCharacters;
         _overlayManager.SyncMonitors(snapshot, overlayActive);
 
         bool allSuppressed = _overlayManager.AreAllMonitorsSuppressed(snapshot, overlayActive);
@@ -315,7 +428,7 @@ public sealed class StickmanUniverseEngine : IDisposable
 
     private StickmanCharacter? OnTryBeginGrab(Point physPt)
     {
-        if (!_settings.EnableMouseInteraction || _settings.IsPaused)
+        if (!_settings.EnableMouseInteraction || !ShouldShowCharacters)
         {
             return null;
         }
@@ -330,7 +443,7 @@ public sealed class StickmanUniverseEngine : IDisposable
 
     private void OnTryOpenContextMenu(OverlayWindow window, Point physPt)
     {
-        if (!_settings.EnableMouseInteraction || _settings.IsPaused)
+        if (!_settings.EnableMouseInteraction || !ShouldShowCharacters)
         {
             return;
         }

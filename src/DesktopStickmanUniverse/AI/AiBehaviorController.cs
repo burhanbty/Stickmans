@@ -27,6 +27,10 @@ public sealed class AiBehaviorController
     }
 
     public MiniEventKind CurrentMiniEvent => _eventDirector.ActiveEvent;
+    public double MiniEventRemainingSeconds => _eventDirector.RemainingSeconds;
+
+    public void StopMiniEvent(IReadOnlyList<StickmanCharacter> characters, AppSettings settings) =>
+        _eventDirector.StopEvent(characters, settings);
 
     public MiniEventStartResult TryStartMiniEvent(
         MiniEventKind kind,

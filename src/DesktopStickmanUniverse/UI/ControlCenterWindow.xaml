@@ -1,0 +1,240 @@
+<Window x:Class="DesktopStickmanUniverse.UI.ControlCenterWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Stickmans" Width="1080" Height="740" MinWidth="850" MinHeight="540"
+        WindowStartupLocation="CenterScreen" Background="#10131A" Foreground="#F2F4FB"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="14"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <Window.Resources>
+        <SolidColorBrush x:Key="Muted" Color="#AEB8CE" />
+        <SolidColorBrush x:Key="Accent" Color="#9CF4CE" />
+        <Style x:Key="Action" TargetType="Button">
+            <Setter Property="Foreground" Value="#F2F4FB" />
+            <Setter Property="Background" Value="#252C3B" />
+            <Setter Property="BorderBrush" Value="#384256" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="13,8" />
+            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="8"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#9BAECF" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Chrome" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.75" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource Action}">
+            <Setter Property="Foreground" Value="#13241D" />
+            <Setter Property="Background" Value="{StaticResource Accent}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="Panel" TargetType="Border">
+            <Setter Property="Background" Value="#191F2B" />
+            <Setter Property="BorderBrush" Value="#2D3749" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="18" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style x:Key="Duration" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#E1E8F6" />
+            <Setter Property="Background" Value="#242D3D" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Chip" Background="{TemplateBinding Background}" CornerRadius="7"
+                                BorderBrush="#3B465C" BorderThickness="1" Padding="11,6" Margin="0,0,6,0">
+                            <ContentPresenter RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chip" Property="Background" Value="#29483F" />
+                                <Setter TargetName="Chip" Property="BorderBrush" Value="#74C5A3" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Chip" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border BorderThickness="0,0,0,1" BorderBrush="#283143" Padding="25,14">
+            <DockPanel LastChildFill="False">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                    <TextBlock Text="Stickmans" FontSize="25" FontWeight="Bold" VerticalAlignment="Center" />
+                    <TextBlock x:Name="PlaybackLabel" Foreground="{StaticResource Accent}" Margin="17,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Button x:Name="PlaybackButton" Content="Pause" Style="{StaticResource Action}" Click="OnPlaybackClick" MinWidth="84" />
+                    <Button Content="Settings" Style="{StaticResource Action}" Click="OnSettingsClick" Margin="8,0,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Grid Margin="25,20,25,25">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="300" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <Border Style="{StaticResource Panel}" Padding="20" MinHeight="170">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Offset="0" Color="#203544" />
+                                <GradientStop Offset="1" Color="#242438" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="128" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock x:Name="EventHeading" Text="Desktop stage" FontSize="30" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="EventStatus" Foreground="#CAD5E9" TextWrapping="Wrap" Margin="0,5,0,13" />
+                                <Button x:Name="StopEventButton" Content="Stop event" Style="{StaticResource Action}"
+                                        Click="OnStopEventClick" HorizontalAlignment="Left" Visibility="Collapsed" />
+                            </StackPanel>
+                            <Viewbox Grid.Column="1" Width="123" HorizontalAlignment="Right" IsHitTestVisible="False">
+                                <Canvas Width="150" Height="114">
+                                    <Ellipse Canvas.Left="9" Canvas.Top="12" Width="126" Height="95" Fill="#252F46" />
+                                    <Path Data="M 8,108 L 142,108 M 25,91 L 75,91 M 72,72 L 131,72" Stroke="#566682" StrokeThickness="2" />
+                                    <Path Data="M 51,47 L 51,66 M 51,51 L 31,41 M 51,51 L 66,39 M 51,66 L 39,90 M 51,66 L 62,90"
+                                          Stroke="#9CF4CE" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    <Ellipse Canvas.Left="43" Canvas.Top="28" Width="16" Height="16" Stroke="#9CF4CE" StrokeThickness="4" />
+                                    <Path Data="M 104,46 L 100,56 M 104,46 L 120,51 M 104,46 L 91,45 M 100,56 L 88,70 M 100,56 L 111,69"
+                                          Stroke="#CEBAFF" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    <Ellipse Canvas.Left="100" Canvas.Top="29" Width="14" Height="14" Stroke="#CEBAFF" StrokeThickness="4" />
+                                    <Path Data="M 77,20 L 77,31 M 72,25 L 83,25 M 126,19 L 126,29 M 121,24 L 131,24" Stroke="#FFCC86" StrokeThickness="2" />
+                                </Canvas>
+                            </Viewbox>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Text="Mini-events" Style="{StaticResource SectionTitle}" Margin="0,21,0,7" />
+                    <CheckBox x:Name="AutomaticEventsCheck" Content="Let the crew start events automatically"
+                              Foreground="{StaticResource Muted}" Checked="OnAutomaticEventsChanged" Unchecked="OnAutomaticEventsChanged"
+                              Margin="0,0,0,11" />
+                    <ItemsControl x:Name="EventChoices" Margin="-4,0,-4,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource Action}" Background="#191F2B" BorderBrush="#303A4E" Padding="12,10"
+                                        HorizontalContentAlignment="Stretch" MinHeight="68" Margin="4" Click="OnStartEventClick"
+                                        AutomationProperties.Name="{Binding Title}">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Left" Width="3" CornerRadius="1.5" Background="{Binding Accent}" Margin="0,1,9,1" />
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Description}" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="EventFeedback" Foreground="#FFCE9A" TextWrapping="Wrap" Margin="0,6,0,0"
+                               AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Focus session" Style="{StaticResource SectionTitle}" />
+                            <TextBlock x:Name="FocusStatus" Text="Hide the crew for a set time." Foreground="{StaticResource Muted}"
+                                       TextWrapping="Wrap" Margin="0,4,0,12" />
+                            <StackPanel x:Name="FocusDurations" Orientation="Horizontal" Margin="0,0,0,11">
+                                <RadioButton x:Name="Focus15" GroupName="FocusDuration" Content="15 min" Style="{StaticResource Duration}" />
+                                <RadioButton x:Name="Focus25" GroupName="FocusDuration" Content="25 min" Style="{StaticResource Duration}" IsChecked="True" />
+                                <RadioButton x:Name="Focus50" GroupName="FocusDuration" Content="50 min" Style="{StaticResource Duration}" />
+                            </StackPanel>
+                            <Button x:Name="FocusButton" Content="Start focus" Style="{StaticResource Primary}" Click="OnFocusClick" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Panel}">
+                        <StackPanel>
+                            <DockPanel LastChildFill="True" Margin="0,0,0,10">
+                                <TextBlock x:Name="CrewCount" DockPanel.Dock="Right" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                <TextBlock Text="Your crew" Style="{StaticResource SectionTitle}" />
+                            </DockPanel>
+                            <ListBox x:Name="CrewList" SelectionChanged="OnCrewSelectionChanged" MaxHeight="145"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Your crew"
+                                     Background="#141A25" Foreground="#F2F4FB" BorderBrush="#303A4E" Padding="3">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <DockPanel Margin="4,5">
+                                            <Ellipse DockPanel.Dock="Left" Width="10" Height="10" Margin="0,0,8,0">
+                                                <Ellipse.Fill><SolidColorBrush Color="{Binding Color}" /></Ellipse.Fill>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding ArchetypeLabel}" DockPanel.Dock="Right" Margin="8,0,0,0" FontSize="12" />
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock Text="Nickname" Foreground="{StaticResource Muted}" Margin="0,10,0,4" />
+                            <DockPanel>
+                                <Button x:Name="SaveNameButton" Content="Save" DockPanel.Dock="Right" Style="{StaticResource Action}"
+                                        Click="OnSaveNameClick" Margin="7,0,0,0" />
+                                <TextBox x:Name="NameEditor" MinHeight="36" VerticalContentAlignment="Center" Padding="8,0"
+                                         Background="#141A25" Foreground="#F2F4FB" BorderBrush="#53617C" CaretBrush="#F2F4FB"
+                                         AutomationProperties.Name="Nickname" ToolTip="Clear the nickname and save to restore the default name."
+                                         TextChanged="OnNameChanged" KeyDown="OnNameKeyDown" />
+                            </DockPanel>
+                            <Button x:Name="FindButton" Content="Find on desktop" Style="{StaticResource Action}" Click="OnFindClick" Margin="0,8,0,0" />
+                            <TextBlock x:Name="CrewFeedback" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,5,0,0"
+                                       AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Window>
