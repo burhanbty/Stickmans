@@ -16,6 +16,16 @@ public enum MiniEventKind
     SummitClimb
 }
 
+public enum MiniEventStartResult
+{
+    Started,
+    DesktopUnavailable,
+    EventInProgress,
+    FightingDisabled,
+    TooFewAvailableCharacters,
+    NoSuitableWindow
+}
+
 /// <summary>
 /// Coordinates emergent multi-character desktop events: dynamic multi-round duels with spectators,
 /// dance parties, acrobatics shows, social chats, tag chases, and window summit climbs.
@@ -139,15 +149,37 @@ public sealed class MiniEventDirector
         return true;
     }
 
+    public MiniEventStartResult TryStartEvent(
+        MiniEventKind kind,
+        IReadOnlyList<StickmanCharacter> characters,
+        DesktopEnvironmentSnapshot snapshot,
+        AppSettings settings)
+    {
+        if (_activeEvent != MiniEventKind.None)
+        {
+            return MiniEventStartResult.EventInProgress;
+        }
+
+        if (kind == MiniEventKind.SpectatedDuel && !settings.EnableFighting)
+        {
+            return MiniEventStartResult.FightingDisabled;
+        }
+
+        var available = GetAvailableCharacters(characters, respectCooldown: false);
+        if (available.Count < 2)
+        {
+            return MiniEventStartResult.TooFewAvailableCharacters;
+        }
+
+        return BeginEvent(kind, characters, available, snapshot, settings);
+    }
+
     private void TryStartRandomEvent(
         IReadOnlyList<StickmanCharacter> characters,
         DesktopEnvironmentSnapshot snapshot,
         AppSettings settings)
     {
-        var available = characters
-            .Where(c => !c.IsGrabbed && c.IsGrounded && c.State != StickmanState.Sleep && c.MiniEventCooldown <= 0 && c.PartnerCharacterId is null)
-            .ToList();
-
+        var available = GetAvailableCharacters(characters, respectCooldown: true);
         if (available.Count < 2)
         {
             return;
@@ -170,8 +202,24 @@ public sealed class MiniEventDirector
             candidates.Add(MiniEventKind.SummitClimb);
         }
 
-        MiniEventKind chosen = candidates[_rng.Next(candidates.Count)];
-        switch (chosen)
+        BeginEvent(candidates[_rng.Next(candidates.Count)], characters, available, snapshot, settings);
+    }
+
+    private static List<StickmanCharacter> GetAvailableCharacters(
+        IReadOnlyList<StickmanCharacter> characters, bool respectCooldown) => characters
+        .Where(c => !c.IsGrabbed && c.IsGrounded && c.GroundedSurface is not null &&
+            c.State != StickmanState.Sleep && c.PartnerCharacterId is null &&
+            (!respectCooldown || c.MiniEventCooldown <= 0))
+        .ToList();
+
+    private MiniEventStartResult BeginEvent(
+        MiniEventKind kind,
+        IReadOnlyList<StickmanCharacter> characters,
+        List<StickmanCharacter> available,
+        DesktopEnvironmentSnapshot snapshot,
+        AppSettings settings)
+    {
+        switch (kind)
         {
             case MiniEventKind.SpectatedDuel:
             {
@@ -179,11 +227,8 @@ public sealed class MiniEventDirector
                 var b = available
                     .Where(c => c.Id != a.Id)
                     .OrderBy(c => Math.Abs(c.Y - a.Y) + Math.Abs(c.X - a.X) * 0.25)
-                    .FirstOrDefault();
-                if (b is not null)
-                {
-                    BeginSpectatedDuel(characters, a, b, settings);
-                }
+                    .First();
+                BeginSpectatedDuel(characters, a, b, settings);
                 break;
             }
 
@@ -204,9 +249,15 @@ public sealed class MiniEventDirector
                 break;
 
             case MiniEventKind.SummitClimb:
-                StartSummitClimb(available, snapshot, settings);
-                break;
+                return TryStartSummitClimb(available, snapshot, settings)
+                    ? MiniEventStartResult.Started
+                    : MiniEventStartResult.NoSuitableWindow;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(kind), kind, "Select a desktop mini-event.");
         }
+
+        return MiniEventStartResult.Started;
     }
 
     private void BeginSpectatedDuel(
@@ -237,7 +288,7 @@ public sealed class MiniEventDirector
         // If fighters are on different vertical levels, have one leap toward the other's surface.
         if (Math.Abs(a.Y - b.Y) > 35.0 * a.DpiScale && a.IsGrounded && b.GroundedSurface is not null)
         {
-            double tx = Math.Clamp(b.X + (a.X < b.X ? -40 : 40) * a.DpiScale, b.GroundedSurface.Left + 16, b.GroundedSurface.Right - 16);
+            double tx = ClampToSurface(b.X + (a.X < b.X ? -40 : 40) * a.DpiScale, b.GroundedSurface, 16);
             if (Math.Abs(tx - a.X) < 340 * a.DpiScale)
             {
                 AiBehaviorController.LaunchBallisticJump(a, tx, b.GroundedSurface.Y, a.DpiScale);
@@ -308,7 +359,7 @@ public sealed class MiniEventDirector
         _activeEvent = MiniEventKind.DanceParty;
         _activeEventTimer = 5.4;
         _subPhaseTimer = 0;
-        _gatheringX = Math.Clamp(anchor.X, anchor.GroundedSurface.Left + 55, anchor.GroundedSurface.Right - 55);
+        _gatheringX = ClampToSurface(anchor.X, anchor.GroundedSurface, 55);
         _groupIds.Clear();
         _spectatorIds.Clear();
 
@@ -319,7 +370,7 @@ public sealed class MiniEventDirector
             _groupIds.Add(c.Id);
             c.PartnerCharacterId = anchor.Id;
             double offset = (i - (dancers.Count - 1) * 0.5) * 28.0 * c.DpiScale;
-            c.MoveTargetX = Math.Clamp(_gatheringX + offset, anchor.GroundedSurface.Left + 16, anchor.GroundedSurface.Right - 16);
+            c.MoveTargetX = ClampToSurface(_gatheringX + offset, anchor.GroundedSurface, 16);
             c.TargetSurface = anchor.GroundedSurface;
             c.State = StickmanState.Walk;
             c.StateTime = 0;
@@ -395,7 +446,7 @@ public sealed class MiniEventDirector
         _activeEventTimer = 5.0;
         _subPhaseTimer = 0;
         _gatheringSparkedFight = false;
-        _gatheringX = Math.Clamp(anchor.X, anchor.GroundedSurface.Left + 55, anchor.GroundedSurface.Right - 55);
+        _gatheringX = ClampToSurface(anchor.X, anchor.GroundedSurface, 55);
         _groupIds.Clear();
         _spectatorIds.Clear();
 
@@ -406,7 +457,7 @@ public sealed class MiniEventDirector
             _groupIds.Add(c.Id);
             c.PartnerCharacterId = anchor.Id;
             double offset = (i - (group.Count - 1) * 0.5) * 28.0 * c.DpiScale;
-            c.MoveTargetX = Math.Clamp(_gatheringX + offset, anchor.GroundedSurface.Left + 16, anchor.GroundedSurface.Right - 16);
+            c.MoveTargetX = ClampToSurface(_gatheringX + offset, anchor.GroundedSurface, 16);
             c.TargetSurface = anchor.GroundedSurface;
             c.State = StickmanState.Walk;
             c.StateTime = 0;
@@ -416,7 +467,7 @@ public sealed class MiniEventDirector
         _globalCooldown = GetGlobalCooldown(settings);
     }
 
-    private void StartSummitClimb(List<StickmanCharacter> available, DesktopEnvironmentSnapshot snapshot, AppSettings settings)
+    private bool TryStartSummitClimb(List<StickmanCharacter> available, DesktopEnvironmentSnapshot snapshot, AppSettings settings)
     {
         var highest = snapshot.WalkableSurfaces
             .Where(s => s.Kind == SurfaceKind.WindowTop && s.Length >= 60 * s.DpiScale)
@@ -425,7 +476,7 @@ public sealed class MiniEventDirector
 
         if (highest is null)
         {
-            return;
+            return false;
         }
 
         var climber = available.OrderByDescending(c => c.Personality.CuriosityBias).First();
@@ -443,7 +494,12 @@ public sealed class MiniEventDirector
         climber.StateDuration = 4.2;
         climber.TriggerEmote("?", 0.8);
         _globalCooldown = GetGlobalCooldown(settings);
+        return true;
     }
+
+    private static double ClampToSurface(double x, WalkableSurface surface, double inset) => surface.Length <= 2 * inset
+        ? surface.Left + surface.Length * 0.5
+        : Math.Clamp(x, surface.Left + inset, surface.Right - inset);
 
     private void StepActiveEvent(
         IReadOnlyList<StickmanCharacter> characters,

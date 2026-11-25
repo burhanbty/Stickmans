@@ -28,6 +28,13 @@ public sealed class AiBehaviorController
 
     public MiniEventKind CurrentMiniEvent => _eventDirector.ActiveEvent;
 
+    public MiniEventStartResult TryStartMiniEvent(
+        MiniEventKind kind,
+        IReadOnlyList<StickmanCharacter> characters,
+        DesktopEnvironmentSnapshot snapshot,
+        AppSettings settings)
+        => _eventDirector.TryStartEvent(kind, characters, snapshot, settings);
+
     public bool ChallengeNearbyFriend(
         IReadOnlyList<StickmanCharacter> characters,
         StickmanCharacter challenger,

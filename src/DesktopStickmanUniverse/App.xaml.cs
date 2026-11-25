@@ -37,6 +37,7 @@ public partial class App : Application
         _trayManager.PauseResumeRequested += () => _engine.TogglePause();
         _trayManager.SettingsRequested += ShowOrActivateSettings;
         _trayManager.ScatterRequested += () => _engine.ScatterCharacters();
+        _trayManager.MiniEventRequested += kind => _trayManager.ShowMiniEventResult(_engine.TryStartMiniEvent(kind));
         _trayManager.ExitRequested += ShutdownCleanly;
 
         _engine.OpenSettingsRequested += ShowOrActivateSettings;

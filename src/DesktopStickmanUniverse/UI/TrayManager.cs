@@ -1,12 +1,13 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
+using DesktopStickmanUniverse.AI;
 using Forms = System.Windows.Forms;
 
 namespace DesktopStickmanUniverse.UI;
 
 /// <summary>
-/// System tray integration exposing Pause, Resume, Settings, Scatter, and Exit.
+/// System tray controls for the simulation and its desktop mini-events.
 /// Uses a programmatically rendered icon so no external asset files are required.
 /// </summary>
 public sealed class TrayManager : IDisposable
@@ -23,6 +24,7 @@ public sealed class TrayManager : IDisposable
     public event Action? PauseResumeRequested;
     public event Action? SettingsRequested;
     public event Action? ScatterRequested;
+    public event Action<MiniEventKind>? MiniEventRequested;
     public event Action? ExitRequested;
 
     public TrayManager()
@@ -41,11 +43,20 @@ public sealed class TrayManager : IDisposable
         var scatterItem = new Forms.ToolStripMenuItem("Scatter Characters");
         scatterItem.Click += (_, _) => ScatterRequested?.Invoke();
 
+        var miniEventsItem = new Forms.ToolStripMenuItem("Mini-Events");
+        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Dance Party", MiniEventKind.DanceParty));
+        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Tag Chase", MiniEventKind.TagChase));
+        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Acrobatics Show", MiniEventKind.AcrobaticsShow));
+        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Group Chat", MiniEventKind.GatheringChat));
+        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Window Summit Climb", MiniEventKind.SummitClimb));
+        miniEventsItem.DropDownItems.Add(CreateMiniEventItem("Spectated Duel", MiniEventKind.SpectatedDuel));
+
         var exitItem = new Forms.ToolStripMenuItem("Exit");
         exitItem.Click += (_, _) => ExitRequested?.Invoke();
 
         menu.Items.Add(_pauseResumeItem);
         menu.Items.Add(scatterItem);
+        menu.Items.Add(miniEventsItem);
         menu.Items.Add(settingsItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(exitItem);
@@ -59,6 +70,31 @@ public sealed class TrayManager : IDisposable
         };
 
         _notifyIcon.DoubleClick += (_, _) => SettingsRequested?.Invoke();
+    }
+
+    private Forms.ToolStripMenuItem CreateMiniEventItem(string label, MiniEventKind kind)
+    {
+        var item = new Forms.ToolStripMenuItem(label);
+        item.Click += (_, _) => MiniEventRequested?.Invoke(kind);
+        return item;
+    }
+
+    public void ShowMiniEventResult(MiniEventStartResult result)
+    {
+        string? message = result switch
+        {
+            MiniEventStartResult.DesktopUnavailable => "Resume the simulation and make the characters visible first.",
+            MiniEventStartResult.EventInProgress => "Wait for the current mini-event to finish, then try again.",
+            MiniEventStartResult.FightingDisabled => "Enable playful fighting in Settings to start a duel.",
+            MiniEventStartResult.TooFewAvailableCharacters => "At least two characters must be awake, grounded, and free to join.",
+            MiniEventStartResult.NoSuitableWindow => "Open a window with a wide, visible top edge to start a summit climb.",
+            _ => null
+        };
+
+        if (!_disposed && message is not null)
+        {
+            _notifyIcon.ShowBalloonTip(4000, "Mini-Events", message, Forms.ToolTipIcon.Info);
+        }
     }
 
     public void UpdatePausedState(bool isPaused)

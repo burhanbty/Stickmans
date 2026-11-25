@@ -6,7 +6,7 @@ Autonomous Windows desktop stickman overlay application built with **.NET 8**, *
 
 - **Desktop & Multi-Monitor Awareness**: Tracks open windows, DWM extended frame bounds, cloaked windows, taskbars, and per-monitor DPI scales using `SetWinEventHook` and Win32 APIs (`WindowTracker`, `DesktopEnvironmentSnapshot`).
 - **2D Physics & Surface Carry**: Deterministic physics engine with gravity, swept landings, window-movement carry, wall climbing/mantling, monitor boundary handling, and character separation (`PhysicsEngine`).
-- **Autonomous AI & Mini-Events**: Per-character AI with personality traits, cursor reactions, and emergent group events (`SpectatedDuel`, `TagChase`, `GatheringChat`, `DanceParty`, `AcrobaticsShow`, `SummitClimb`) via `AiBehaviorController` and `MiniEventDirector`.
+- **Autonomous AI & Mini-Events**: Characters react to the cursor and organize duels, tag chases, chats, dance parties, acrobatics shows, and window climbs. To start one yourself, right-click the system tray icon and choose **Mini-Events**.
 - **Procedural Animation**: Skeleton rig and procedural animation (`SkeletonRig`, `ProceduralAnimator`) rendered smoothly onto transparent per-monitor overlays (`OverlayManager`, `CharacterRenderer`).
 - **Mouse & Tray Controls**: Grab/throw characters, hover and cursor reactions, right-click character menu, and system tray controls (`Pause`/`Resume`, `Scatter Characters`, `Settings...`, `Exit`).
 - **Settings & Live Telemetry**: Configure character count (1–10), custom character colors, animation speed (0.5x–2.0x), activity level (`Calm`, `Normal`, `Lively`), playful fighting, mouse interactions, Performance Mode (Eco), Windows startup launch (`HKCU` Run key), and live FPS/CPU/memory/scan telemetry (`SettingsWindow`).

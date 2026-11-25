@@ -11,6 +11,57 @@ namespace DesktopStickmanUniverse.Tests;
 
 public sealed class AiAndSettingsTests
 {
+    [Theory]
+    [InlineData(MiniEventKind.DanceParty)]
+    [InlineData(MiniEventKind.TagChase)]
+    [InlineData(MiniEventKind.AcrobaticsShow)]
+    [InlineData(MiniEventKind.GatheringChat)]
+    [InlineData(MiniEventKind.SummitClimb)]
+    [InlineData(MiniEventKind.SpectatedDuel)]
+    public void MiniEventDirector_ManualStartSelectsRequestedEvent(MiniEventKind kind)
+    {
+        var narrowSurface = new WalkableSurface("ledge", new IntPtr(1), SurfaceKind.WindowTop, 400, 480, 250, 0, 0, 1, 0, "Window");
+        var snapshot = DesktopEnvironmentSnapshot.Empty with { WalkableSurfaces = new[] { narrowSurface } };
+        var characters = new[]
+        {
+            new StickmanCharacter { Id = 1, X = 420, Y = narrowSurface.Y, IsGrounded = true, GroundedSurface = narrowSurface, MiniEventCooldown = 3 },
+            new StickmanCharacter { Id = 2, X = 460, Y = narrowSurface.Y, IsGrounded = true, GroundedSurface = narrowSurface, MiniEventCooldown = 3 }
+        };
+        var director = new MiniEventDirector(new Random(14));
+        var settings = new AppSettings { EnableFighting = true };
+
+        Assert.Equal(MiniEventStartResult.Started, director.TryStartEvent(kind, characters, snapshot, settings));
+        Assert.Equal(kind, director.ActiveEvent);
+        Assert.Equal(MiniEventStartResult.EventInProgress,
+            director.TryStartEvent(MiniEventKind.TagChase, characters, snapshot, settings));
+        Assert.Equal(kind, director.ActiveEvent);
+    }
+
+    [Fact]
+    public void MiniEventDirector_ManualStartReportsUnmetRequirements()
+    {
+        var floor = new WalkableSurface("floor", IntPtr.Zero, SurfaceKind.MonitorFloor, 0, 1200, 720, 0, 0, 1, 0, "Floor");
+        var snapshot = DesktopEnvironmentSnapshot.Empty with { WalkableSurfaces = new[] { floor } };
+        var characters = new[]
+        {
+            new StickmanCharacter { Id = 1, X = 400, Y = floor.Y, IsGrounded = true, GroundedSurface = floor },
+            new StickmanCharacter { Id = 2, X = 460, Y = floor.Y, IsGrounded = true, GroundedSurface = floor }
+        };
+        var director = new MiniEventDirector();
+        var settings = new AppSettings { EnableFighting = false };
+
+        Assert.Equal(MiniEventStartResult.FightingDisabled,
+            director.TryStartEvent(MiniEventKind.SpectatedDuel, characters, snapshot, settings));
+        Assert.Equal(MiniEventStartResult.NoSuitableWindow,
+            director.TryStartEvent(MiniEventKind.SummitClimb, characters, snapshot, settings));
+
+        characters[1].IsGrabbed = true;
+        Assert.Equal(MiniEventStartResult.TooFewAvailableCharacters,
+            director.TryStartEvent(MiniEventKind.DanceParty, characters, snapshot, settings));
+        Assert.Equal(MiniEventKind.None, director.ActiveEvent);
+        Assert.All(characters, character => Assert.Null(character.PartnerCharacterId));
+    }
+
     [Fact]
     public void MiniEventDirector_NeverStartsSpar_WhenFightingDisabled()
     {

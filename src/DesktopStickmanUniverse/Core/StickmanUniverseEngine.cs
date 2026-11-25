@@ -125,6 +125,18 @@ public sealed class StickmanUniverseEngine : IDisposable
         ApplySettings(copy);
     }
 
+    public MiniEventStartResult TryStartMiniEvent(MiniEventKind kind)
+    {
+        var snapshot = _windowTracker.CurrentSnapshot;
+        bool overlayActive = _settings.CharactersEnabled && !_settings.IsPaused;
+        if (_disposed || _overlayManager.AreAllMonitorsSuppressed(snapshot, overlayActive))
+        {
+            return MiniEventStartResult.DesktopUnavailable;
+        }
+
+        return _aiController.TryStartMiniEvent(kind, _characters, snapshot, _settings);
+    }
+
     public void ScatterCharacters()
     {
         var snap = _windowTracker.CurrentSnapshot;
